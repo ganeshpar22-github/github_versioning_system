@@ -30,14 +30,14 @@ jobs:
       - name: Make scripts executable
         # Ensure both the main orchestrator and the individual version scripts are executable
         run: |
-          chmod +x generate_pages.sh
-          # Since generate_pages.sh checks out other branches, this might be redundant, 
+          chmod +x utilityscript.sh
+          # Since utilityscript.sh checks out other branches, this might be redundant, 
           # but good practice if testing locally. The chmod on the main script is crucial.
 
       - name: Run Version Generation Utility Script
         # This script orchestrates the whole process, including calling version.sh on all branches
         run: ./utilityscript.sh
-        # If generate_pages.sh exits with a non-zero status (due to 'set -e' on errors), 
+        # If utilityscript.sh exits with a non-zero status (due to 'set -e' on errors), 
         # this step fails the workflow as required by the epic.
 
       # --- Deployment Steps ---
