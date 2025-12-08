@@ -1,4 +1,7 @@
 #!/bin/bash
+# Description: Orchestrates fetching versions from all release branches and generates
+#              the final release.html and release.json files for GitHub Pages deployment.
+
 set -e
 
 REPO_ROOT=$(pwd)
@@ -7,6 +10,13 @@ mkdir -p "$OUTPUT_DIR"
 
 HTML_OUTPUT="$OUTPUT_DIR/release.html"
 JSON_OUTPUT="$OUTPUT_DIR/release.json"
+
+# Define infinity constants used in the final output
+RELEASE_INFINITY_SUFFIX=".999"
+NEXT_RELEASE_SUFFIX=".1000"
+MASTER_INFINITY="0.0.0" # Matches the special version number for master branch parameters
+
+echo "Starting pages generation process..."
 
 # Start JSON file structure
 echo "{" > "$JSON_OUTPUT"
@@ -17,8 +27,19 @@ cat <<EOF > "$HTML_OUTPUT"
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Release Versions</title>
-    <style>table, th, td {border: 1px solid black; border-collapse: collapse; padding: 5px;}</style>
+    <style>
+        table, th, td {
+            border: 1px solid black;
+            border-collapse: collapse;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+    </style>
 </head>
 <body>
     <h1>Current Release Versions</h1>
@@ -34,33 +55,37 @@ cat <<EOF > "$HTML_OUTPUT"
         <tbody>
 EOF
 
-# Define branches to process: master first, then specific release branches
-BRANCHES=("main" "release/crew-2025.1" "release/crew-2024.2" "release/crew-2024.1")
+# Define branches to process: main/master first, then specific release branches from newest to oldest
+BRANCHES=("main" "release/crew-2025.1" "release/crew-2024.2" "release/crew-2024.1" "release/crew-2023.1" "release/crew-2022.3" "release/crew-2021.1")
 FIRST_ENTRY=true
 
 for BRANCH in "${BRANCHES[@]}"; do
-    echo "Processing branch: $BRANCH"
+    echo "--- Processing branch: $BRANCH ---"
     
-    # Temporarily switch to the branch
+    # Temporarily switch to the branch to run its local version script
     git checkout "$BRANCH" > /dev/null 2>&1
 
-    # Define the VERSION_PREFIX needed for the inner script
-    # Handle "main" specifically, otherwise strip the "release/crew-" part
+    # Set the environment variable required by version.sh script
     if [[ "$BRANCH" == "main" ]]; then
-        VERSION_PREFIX="master"
-        # For master/main, the inner script should default to 0.0.0
-        export VERSION_PREFIX="" 
-        CURRENT_VER=$(./bin/version.sh) # Should return 0.0.0 based on logic
-        MAX_VER="0.0.0"
-        NEXT_REL="undefined"
+        export VERSION_PREFIX="" # version.sh defaults to 0.0.0 based on this empty prefix
+        MAX_VER="$MASTER_INFINITY"
+        NEXT_REL="undefined" # Matches epic requirement for master branch
         JSON_KEY="master"
     else
-        VERSION_PREFIX=$(echo "$BRANCH" | sed 's/release\/crew-//') # e.g., 2025.1
-        export VERSION_PREFIX # Pass prefix via ENV var to the script
-        CURRENT_VER=$(./bin/version.sh)
-        MAX_VER="${VERSION_PREFIX}.999"
-        NEXT_REL="${VERSION_PREFIX}.1000"
+        # Extract the YYYY.R part (e.g., 2025.1)
+        export VERSION_PREFIX=$(echo "$BRANCH" | sed 's/release\/crew-//')
+        MAX_VER="${VERSION_PREFIX}${RELEASE_INFINITY_SUFFIX}"
+        NEXT_REL="${VERSION_PREFIX}${NEXT_RELEASE_SUFFIX}"
         JSON_KEY="$BRANCH"
+    fi
+
+    # Execute the version generation script located in the *current branch* context
+    if CURRENT_VER=$(./bin/version.sh); then
+        echo "Generated Version for $BRANCH: $CURRENT_VER"
+    else
+        echo "[FATAL] Failed to generate version for $BRANCH. Exiting script." >&2
+        # Fails the entire pipeline as per requirement "workflow fails if: version generation fails"
+        exit 1 
     fi
 
     # Append to JSON (handle commas correctly)
@@ -70,6 +95,7 @@ for BRANCH in "${BRANCHES[@]}"; do
         FIRST_ENTRY=false
     fi
     
+    # Generate JSON structure based on branch type (master vs release)
     if [[ "$BRANCH" == "main" ]]; then
         cat <<EOF >> "$JSON_OUTPUT"
   "$JSON_KEY":{
@@ -103,12 +129,18 @@ done
 echo "    </tbody></table></body></html>" >> "$HTML_OUTPUT"
 echo "}" >> "$JSON_OUTPUT"
 
-# Switch back to main branch context
+# Switch back to main branch context before finishing
 git checkout main > /dev/null 2>&1
 
-echo "Generated HTML and JSON files in $OUTPUT_DIR"
+echo "Successfully generated $HTML_OUTPUT and $JSON_OUTPUT"
 
-# Add validation logic here using tools like 'jq' for JSON and 'html-proofer' (needs installation) for HTML
-jq . "$JSON_OUTPUT" > /dev/null # Basic JSON validation
-echo "JSON validation successful."
-# (HTML validation step would require an external tool installation in the CI runner)
+# Add basic JSON validation using 'jq' (must be installed in the CI runner)
+if command -v jq &> /dev/null; then
+    jq . "$JSON_OUTPUT" > /dev/null
+    echo "JSON validation successful."
+else
+    echo "[WARNING] jq not installed, skipping JSON format validation."
+fi
+
+# Note: HTML W3C validation needs an external tool in the CI runner environment
+echo "Pages generation process completed."
