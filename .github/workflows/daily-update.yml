@@ -36,7 +36,7 @@ jobs:
 
       - name: Run Version Generation Utility Script
         # This script orchestrates the whole process, including calling version.sh on all branches
-        run: ./generate_pages.sh
+        run: ./utilityscript.sh
         # If generate_pages.sh exits with a non-zero status (due to 'set -e' on errors), 
         # this step fails the workflow as required by the epic.
 
