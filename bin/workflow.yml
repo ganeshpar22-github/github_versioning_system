@@ -1,0 +1,36 @@
+name: Daily Version Generation and Deploy
+
+on:
+  schedule:
+    # Runs every day at 00:05 UTC
+    - cron: '5 0 * * *'
+  workflow_dispatch: # Allows manual trigger
+
+jobs:
+  generate-and-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Needed for checkout and deployment action
+
+    steps:
+      - name: Checkout Repository (main branch)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Fetch all branches for cross-branch scripting
+
+      # (Optional but recommended) Step to install HTML validation tools if required
+      # - name: Install HTML Proofer (example)
+      #   run: sudo apt-get install ruby-bundler ruby-dev && bundle install && gem install html-proofer
+
+      - name: Run Version Generation Script
+        run: ./generate_pages.sh
+        # Workflow fails automatically if generate_pages.sh fails (due to 'set -e')
+
+      # The next steps ensure the *latest* generated files are deployed
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./site_output
+          publish_branch: gh-pages # Deploys the output directory content to a dedicated 'gh-pages' branch
+          cname: your-custom-domain.com # Optional: set your custom domain if needed
