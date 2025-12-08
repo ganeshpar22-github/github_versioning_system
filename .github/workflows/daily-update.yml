@@ -1,0 +1,55 @@
+name: Daily Version Generation and Deploy
+
+on:
+  schedule:
+    # Runs every day at 00:05 UTC
+    - cron: '5 0 * * *'
+  workflow_dispatch: # Allows manual triggering from the GitHub UI
+
+jobs:
+  generate-and-deploy:
+    runs-on: ubuntu-latest
+    # Grant necessary permissions for checkout, writing files, and deploying pages
+    permissions:
+      contents: write 
+      pages: write
+      id-token: write # Needed for newer GitHub Pages deployments
+
+    steps:
+      - name: Checkout Repository (Fetch all branches)
+        uses: actions/checkout@v4
+        with:
+          # Fetch depth 0 ensures we have all branches locally for the script to switch between them
+          fetch-depth: 0 
+
+      - name: Install Dependencies
+        run: |
+          # Install jq for JSON validation as requested in the utility script
+          sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Make scripts executable
+        # Ensure both the main orchestrator and the individual version scripts are executable
+        run: |
+          chmod +x generate_pages.sh
+          # Since generate_pages.sh checks out other branches, this might be redundant, 
+          # but good practice if testing locally. The chmod on the main script is crucial.
+
+      - name: Run Version Generation Utility Script
+        # This script orchestrates the whole process, including calling version.sh on all branches
+        run: ./generate_pages.sh
+        # If generate_pages.sh exits with a non-zero status (due to 'set -e' on errors), 
+        # this step fails the workflow as required by the epic.
+
+      # --- Deployment Steps ---
+      - name: Setup GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          # Directory containing the generated HTML and JSON files
+          path: './site_output'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
