@@ -21,7 +21,7 @@ jobs:
         with:
           # Fetch depth 0 ensures we have all branches locally for the script to switch between them
           fetch-depth: 0 
-          ref: main
+          ref: master
 
       
 
