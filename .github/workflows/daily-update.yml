@@ -22,6 +22,15 @@ jobs:
           # Fetch depth 0 ensures we have all branches locally for the script to switch between them
           fetch-depth: 0 
 
+      - name: Create local branches for all remotes
+        run: |
+          for branch in $(git for-each-ref --format='%(refname)' refs/remotes/origin/release/crew-*); do
+            git branch --track ${branch#refs/remotes/origin/} $branch
+          done
+          # Ensure main is checked out locally first
+          git checkout main
+          
+
       - name: Install Dependencies
         run: |
           # Install jq for JSON validation as requested in the utility script
