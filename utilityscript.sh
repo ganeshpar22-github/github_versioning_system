@@ -123,6 +123,8 @@ for BRANCH_REF in "${RELEASE_REFS[@]}"; do
     # Checkout the specific branch name so the files are present locally in temp dir
     git checkout "$BRANCH_NAME" > /dev/null 2>&1
 
+    chmod +x ./bin/version.sh # Ensure version.sh is executable
+
     # Extract the YYYY.R part (e.g., 2025.1)
     export VERSION_PREFIX=$(echo "$BRANCH_NAME" | sed 's/release\/crew-//')
 
