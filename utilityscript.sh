@@ -1,6 +1,7 @@
 #!/bin/bash
 # Description: Orchestrates version fetching and generates the final HTML and JSON files.
 
+set -e
 
 REPO_ROOT=$(pwd)
 OUTPUT_DIR="$REPO_ROOT/site_output"
@@ -35,7 +36,6 @@ calculate_master_version_components() {
 
     echo "$PREFIX.$WEEKS.$DAYS"
 }
-
 
 # Start JSON file structure
 echo "{" > "$JSON_OUTPUT"
@@ -72,7 +72,6 @@ cat <<EOF > "$HTML_OUTPUT"
         <tbody>
 EOF
 
-# Flag to manage commas in JSON entries
 FIRST_ENTRY=true
 
 # --- Process 'main' branch data first (Hardcoded as requested by user) ---
@@ -84,6 +83,7 @@ MASTER_ANCHOR_DATE="2025-12-01"
 
 echo "--- Processing branch: main (master) using hardcoded values ---"
 
+# Use the function after it has been defined above
 CURRENT_VER=$(calculate_master_version_components "$MASTER_ANCHOR_DATE" "$MASTER_PREFIX")
 JSON_KEY="master" MAX_VER="$MASTER_INFINITY" NEXT_REL="undefined"
 
@@ -107,29 +107,38 @@ EOF
 FIRST_ENTRY=false
 
 
-# --- Process Release Branches using git checkout and the required version.sh script ---
+# --- Process Release Branches using temporary clones ---
 
-# Dynamically find all release branches (main is excluded by name pattern)
-RELEASE_BRANCHES=$(git for-each-ref --sort=-committerdate --format='%(refname:short)' refs/heads/release/crew-*)
+# Find branches using a safer find command format:
+mapfile -t RELEASE_BRANCHES < <(git for-each-ref --sort=-committerdate --format='%(refname:short)' refs/heads/release/crew-*)
 
-for BRANCH in $RELEASE_BRANCHES; do
+for BRANCH in "${RELEASE_BRANCHES[@]}"; do
     echo "--- Processing branch: $BRANCH ---"
     
-    # CRITICAL STEP: Temporarily switch to the branch to satisfy the functional requirement
-    # that the local version.sh script must run in its own context.
+    # Create a temporary directory for this specific branch
+    TEMP_DIR=$(mktemp -d)
+    
+    # Clone the repo into the temp directory and switch to the specific branch
+    git clone "$REPO_ROOT" "$TEMP_DIR" > /dev/null 2>&1
+    cd "$TEMP_DIR"
     git checkout "$BRANCH" > /dev/null 2>&1
 
     # Extract the YYYY.R part (e.g., 2025.1)
     export VERSION_PREFIX=$(echo "$BRANCH" | sed 's/release\/crew-//')
 
-    # Execute the version.sh script which *is* present in this specific branch context
+    # Execute the version.sh script which IS present in this temp directory
     if CURRENT_VER=$(./bin/version.sh); then
         echo "Generated Version for $BRANCH: $CURRENT_VER"
     else
         echo "[ERROR] version.sh failed for $BRANCH. Logging and degrading gracefully." >&2
+        cd "$REPO_ROOT" # Ensure we return before continuing
+        rm -rf "$TEMP_DIR" # Clean up temp dir
         continue # Skip this branch, but don't break the whole script
     fi
     
+    # Return to the main repository root directory to write the outputs
+    cd "$REPO_ROOT"
+
     MAX_VER="${VERSION_PREFIX}${RELEASE_INFINITY_SUFFIX}"
     NEXT_REL="${VERSION_PREFIX}${NEXT_RELEASE_SUFFIX}"
     JSON_KEY="$BRANCH"
@@ -153,14 +162,17 @@ EOF
             </tr>
 EOF
 
+    # Clean up the temporary directory for this iteration
+    rm -rf "$TEMP_DIR"
+
 done
+
+# Note: No final 'git checkout main' is needed as we never left the main branch context!
 
 # Finalize HTML and JSON files
 echo "    </tbody></table></body></html>" >> "$HTML_OUTPUT"
 echo "}" >> "$JSON_OUTPUT"
 
-# Switch back to main branch context before finishing
-git checkout main > /dev/null 2>&1
 
 echo "Successfully generated $HTML_OUTPUT and $JSON_OUTPUT"
 
@@ -171,4 +183,3 @@ if command -v jq &> /dev/null; then
 else
     echo "[WARNING] jq not installed, skipping JSON format validation."
 fi
-echo "Pages generation process completed."
