@@ -29,6 +29,7 @@ calculate_master_version_components() {
     CURRENT_EPOCH=$(date +%s)
     DAYS_DIFF=$(( (CURRENT_EPOCH - START_EPOCH) / 86400 ))
     
+    # Master branch specific logic: Weeks are always 0. Days increment daily.
     WEEKS=0
     DAYS=$DAYS_DIFF
 
@@ -102,7 +103,7 @@ EOF
 FIRST_ENTRY=false
 
 
-# --- Process Release Branches using temporary clones and referencing remotes ---
+# --- Process Release Branches using a single repository approach ---
 
 # Find branches in the remote references
 mapfile -t RELEASE_REFS < <(git for-each-ref --sort=-committerdate --format='%(refname:short)' refs/remotes/origin/release/crew-*)
@@ -110,37 +111,26 @@ mapfile -t RELEASE_REFS < <(git for-each-ref --sort=-committerdate --format='%(r
 for BRANCH_REF in "${RELEASE_REFS[@]}"; do
     echo "--- Processing branch ref: $BRANCH_REF ---"
 
+    # Forcefully switch the working directory to this branch's content
+    git reset --hard "$BRANCH_REF" > /dev/null 2>&1
+    
+    # Ensure the script has execute permissions just in case
+    chmod +x ./bin/version.sh
+
     # Derive clean branch name (e.g., release/crew-2025.1) from the remote ref (origin/release/crew-2025.1)
     BRANCH_NAME=$(echo "$BRANCH_REF" | sed 's/origin\///')
-    
-    # Create a temporary directory for this specific branch context
-    TEMP_DIR=$(mktemp -d)
-    
-    # Clone the repo into the temp directory
-    git clone "$REPO_ROOT" "$TEMP_DIR" > /dev/null 2>&1
-    cd "$TEMP_DIR"
-    
-    # Checkout the specific branch name so the files are present locally in temp dir
-    git checkout "$BRANCH_NAME" > /dev/null 2>&1
-
-    chmod +x ./bin/version.sh # Ensure version.sh is executable
 
     # Extract the YYYY.R part (e.g., 2025.1)
     export VERSION_PREFIX=$(echo "$BRANCH_NAME" | sed 's/release\/crew-//')
 
-    # Execute the version.sh script which IS present in this temp directory
+    # Execute the version.sh script which IS present in this branch context
     if CURRENT_VER=$(VERSION_PREFIX="$VERSION_PREFIX" ./bin/version.sh); then
         echo "Generated Version for $BRANCH_NAME: $CURRENT_VER"
     else
         echo "[ERROR] version.sh failed for $BRANCH_NAME. Logging and degrading gracefully." >&2
-        cd "$REPO_ROOT"
-        rm -rf "$TEMP_DIR"
-        continue
+        continue # Skip this branch
     fi
     
-    # Return to the main repository root directory to write the outputs
-    cd "$REPO_ROOT"
-
     MAX_VER="${VERSION_PREFIX}${RELEASE_INFINITY_SUFFIX}"
     NEXT_REL="${VERSION_PREFIX}${NEXT_RELEASE_SUFFIX}"
     JSON_KEY="$BRANCH_NAME"
@@ -164,10 +154,11 @@ EOF
             </tr>
 EOF
 
-    # Clean up the temporary directory
-    rm -rf "$TEMP_DIR"
-
 done
+
+# Switch back to main/master branch context before finishing
+# Use the correct name of your default branch here (e.g., 'master' or 'main')
+git reset --hard "master" > /dev/null 2>&1 
 
 
 # Finalize HTML and JSON files
