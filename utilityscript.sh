@@ -1,6 +1,5 @@
 #!/bin/bash
-# Description: Orchestrates fetching versions from all release branches and generates
-#              the final release.html and release.json files for GitHub Pages deployment.
+# Description: Orchestrates version fetching and generates the final HTML and JSON files.
 
 set -e
 
@@ -11,10 +10,9 @@ mkdir -p "$OUTPUT_DIR"
 HTML_OUTPUT="$OUTPUT_DIR/release.html"
 JSON_OUTPUT="$OUTPUT_DIR/release.json"
 
-# Define infinity constants used in the final output
+MASTER_INFINITY="0.0.0"
 RELEASE_INFINITY_SUFFIX=".999"
 NEXT_RELEASE_SUFFIX=".1000"
-MASTER_INFINITY="0.0.0" # Matches the special version number for master branch parameters
 
 echo "Starting pages generation process..."
 
@@ -36,9 +34,7 @@ cat <<EOF > "$HTML_OUTPUT"
             padding: 8px;
             text-align: left;
         }
-        th {
-            background-color: #f2f2f2;
-        }
+        th { background-color: #f2f2f2; }
     </style>
 </head>
 <body>
@@ -55,66 +51,94 @@ cat <<EOF > "$HTML_OUTPUT"
         <tbody>
 EOF
 
-# Define branches to process: main/master first, then specific release branches from newest to oldest
-# ex: full branch name -> origin/release/crew-2023.1
-BRANCHES=("main" $(git branch -r | grep "release/crew-" | sed 's/origin\///'))
+# Function to calculate version components from an anchor date (Used only for Master branch here)
+calculate_master_version_components() {
+    START_DATE_STR=$1
+    PREFIX=$2 # e.g., 2026.1
+    
+    START_EPOCH=$(date -d "$START_DATE_STR" +%s)
+    CURRENT_EPOCH=$(date +%s)
+    DAYS_DIFF=$(( (CURRENT_EPOCH - START_EPOCH) / 86400 ))
+    
+    # Master branch specific logic: Weeks are always 0. Days increment daily.
+    WEEKS=0
+    DAYS=$DAYS_DIFF
+
+    echo "$PREFIX.$WEEKS.$DAYS"
+}
+
+
 FIRST_ENTRY=true
 
-for BRANCH in "${BRANCHES[@]}"; do
-    echo "--- Processing branch: $BRANCH ---"
-    
-    # Temporarily switch to the branch to run its local version script
-    git checkout "$BRANCH" > /dev/null 2>&1
+# --- Process 'main' branch data first (Hardcoded as requested by user) ---
 
-    # Set the environment variable required by version.sh script
-    if [[ "$BRANCH" == "main" ]]; then
-        export VERSION_PREFIX="" # version.sh defaults to 0.0.0 based on this empty prefix
-        MAX_VER="$MASTER_INFINITY"
-        NEXT_REL="undefined" # Matches epic requirement for master branch
-        JSON_KEY="master"
-    else
-        # Extract the YYYY.R part (e.g., 2025.1)
-        export VERSION_PREFIX=$(echo "$BRANCH" | sed 's/release\/crew-//')
-        MAX_VER="${VERSION_PREFIX}${RELEASE_INFINITY_SUFFIX}"
-        NEXT_REL="${VERSION_PREFIX}${NEXT_RELEASE_SUFFIX}"
-        JSON_KEY="$BRANCH"
-    fi
+# !!! Developer Note: Update these two variables when cutting a new release branch !!!
+MASTER_PREFIX="2026.1"
+MASTER_ANCHOR_DATE="2025-12-01" 
+# ----------------------------------------------------------------------------------
 
-    # Execute the version generation script located in the *current branch* context
-    if CURRENT_VER=$(./bin/version.sh); then
-        echo "Generated Version for $BRANCH: $CURRENT_VER"
-    else
-        echo "[FATAL] Failed to generate version for $BRANCH. Exiting script." >&2
-        # Fails the entire pipeline as per requirement "workflow fails if: version generation fails"
-        exit 1 
-    fi
+echo "--- Processing branch: main (master) using hardcoded values ---"
 
-    # Append to JSON (handle commas correctly)
-    if [[ "$FIRST_ENTRY" == "false" ]]; then
-        echo "," >> "$JSON_OUTPUT"
-    else
-        FIRST_ENTRY=false
-    fi
-    
-    # Generate JSON structure based on branch type (master vs release)
-    if [[ "$BRANCH" == "main" ]]; then
-        cat <<EOF >> "$JSON_OUTPUT"
+CURRENT_VER=$(calculate_master_version_components "$MASTER_ANCHOR_DATE" "$MASTER_PREFIX")
+JSON_KEY="master" MAX_VER="$MASTER_INFINITY" NEXT_REL="undefined"
+
+# Add main entry to JSON and HTML
+cat <<EOF >> "$JSON_OUTPUT"
   "$JSON_KEY":{
     "current-version":"$CURRENT_VER",
     "max-version": "$MAX_VER"
   }
 EOF
+
+cat <<EOF >> "$HTML_OUTPUT"
+            <tr>
+                <td>main</td>
+                <td>$CURRENT_VER</td>
+                <td>$MAX_VER</td>
+                <td>$NEXT_REL</td>
+            </tr>
+EOF
+
+FIRST_ENTRY=false
+
+
+# --- Process Release Branches using git checkout and the required version.sh script ---
+
+# Dynamically find all release branches (main is excluded by name pattern)
+RELEASE_BRANCHES=$(git for-each-ref --sort=-committerdate --format='%(refname:short)' refs/heads/release/crew-*)
+
+for BRANCH in $RELEASE_BRANCHES; do
+    echo "--- Processing branch: $BRANCH ---"
+    
+    # CRITICAL STEP: Temporarily switch to the branch to satisfy the functional requirement
+    # that the local version.sh script must run in its own context.
+    git checkout "$BRANCH" > /dev/null 2>&1
+
+    # Extract the YYYY.R part (e.g., 2025.1)
+    export VERSION_PREFIX=$(echo "$BRANCH" | sed 's/release\/crew-//')
+
+    # Execute the version.sh script which *is* present in this specific branch context
+    if CURRENT_VER=$(./bin/version.sh); then
+        echo "Generated Version for $BRANCH: $CURRENT_VER"
     else
-        cat <<EOF >> "$JSON_OUTPUT"
+        echo "[ERROR] version.sh failed for $BRANCH. Logging and degrading gracefully." >&2
+        continue # Skip this branch, but don't break the whole script
+    fi
+    
+    MAX_VER="${VERSION_PREFIX}${RELEASE_INFINITY_SUFFIX}"
+    NEXT_REL="${VERSION_PREFIX}${NEXT_RELEASE_SUFFIX}"
+    JSON_KEY="$BRANCH"
+
+    # Add this branch data to JSON/HTML
+    echo "," >> "$JSON_OUTPUT"
+    cat <<EOF >> "$JSON_OUTPUT"
   "$JSON_KEY":{
     "current-version":"$CURRENT_VER",
     "max-version":"$MAX_VER",
     "next-release":"$NEXT_REL"
   }
 EOF
-    fi
 
-    # Append to HTML table
     cat <<EOF >> "$HTML_OUTPUT"
             <tr>
                 <td>$BRANCH</td>
@@ -142,6 +166,4 @@ if command -v jq &> /dev/null; then
 else
     echo "[WARNING] jq not installed, skipping JSON format validation."
 fi
-
-# Note: HTML W3C validation needs an external tool in the CI runner environment
 echo "Pages generation process completed."
