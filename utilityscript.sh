@@ -1,7 +1,6 @@
 #!/bin/bash
 # Description: Orchestrates version fetching and generates the final HTML and JSON files.
 
-set -e
 
 REPO_ROOT=$(pwd)
 OUTPUT_DIR="$REPO_ROOT/site_output"
@@ -15,6 +14,28 @@ RELEASE_INFINITY_SUFFIX=".999"
 NEXT_RELEASE_SUFFIX=".1000"
 
 echo "Starting pages generation process..."
+
+# Function to calculate version components from an anchor date (Used only for Master branch here)
+calculate_master_version_components() {
+    START_DATE_STR=$1
+    PREFIX=$2 # e.g., 2026.1
+    
+    # Add error capture to the date command for safety
+    if ! START_EPOCH=$(date -d "$START_DATE_STR" +%s 2>/dev/null); then
+        echo "[ERROR] Invalid date format for master anchor date: '$START_DATE_STR'." >&2
+        exit 1 # Fails the script with a clear message
+    fi
+    
+    CURRENT_EPOCH=$(date +%s)
+    DAYS_DIFF=$(( (CURRENT_EPOCH - START_EPOCH) / 86400 ))
+    
+    # Master branch specific logic: Weeks are always 0. Days increment daily.
+    WEEKS=0
+    DAYS=$DAYS_DIFF
+
+    echo "$PREFIX.$WEEKS.$DAYS"
+}
+
 
 # Start JSON file structure
 echo "{" > "$JSON_OUTPUT"
@@ -51,23 +72,7 @@ cat <<EOF > "$HTML_OUTPUT"
         <tbody>
 EOF
 
-# Function to calculate version components from an anchor date (Used only for Master branch here)
-calculate_master_version_components() {
-    START_DATE_STR=$1
-    PREFIX=$2 # e.g., 2026.1
-    
-    START_EPOCH=$(date -d "$START_DATE_STR" +%s)
-    CURRENT_EPOCH=$(date +%s)
-    DAYS_DIFF=$(( (CURRENT_EPOCH - START_EPOCH) / 86400 ))
-    
-    # Master branch specific logic: Weeks are always 0. Days increment daily.
-    WEEKS=0
-    DAYS=$DAYS_DIFF
-
-    echo "$PREFIX.$WEEKS.$DAYS"
-}
-
-
+# Flag to manage commas in JSON entries
 FIRST_ENTRY=true
 
 # --- Process 'main' branch data first (Hardcoded as requested by user) ---
