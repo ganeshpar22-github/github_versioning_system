@@ -21,16 +21,14 @@ calculate_master_version_components() {
     START_DATE_STR=$1
     PREFIX=$2 # e.g., 2026.1
     
-    # Add error capture to the date command for safety
     if ! START_EPOCH=$(date -d "$START_DATE_STR" +%s 2>/dev/null); then
         echo "[ERROR] Invalid date format for master anchor date: '$START_DATE_STR'." >&2
-        exit 1 # Fails the script with a clear message
+        exit 1
     fi
     
     CURRENT_EPOCH=$(date +%s)
     DAYS_DIFF=$(( (CURRENT_EPOCH - START_EPOCH) / 86400 ))
     
-    # Master branch specific logic: Weeks are always 0. Days increment daily.
     WEEKS=0
     DAYS=$DAYS_DIFF
 
@@ -74,16 +72,13 @@ EOF
 
 FIRST_ENTRY=true
 
-# --- Process 'main' branch data first (Hardcoded as requested by user) ---
-
-# !!! Developer Note: Update these two variables when cutting a new release branch !!!
+# --- Process 'main' branch data first (Hardcoded values) ---
+# NOTE: Update these variables when cutting a new release branch
 MASTER_PREFIX="2026.1"
 MASTER_ANCHOR_DATE="2025-12-01" 
-# ----------------------------------------------------------------------------------
 
 echo "--- Processing branch: main (master) using hardcoded values ---"
 
-# Use the function after it has been defined above
 CURRENT_VER=$(calculate_master_version_components "$MASTER_ANCHOR_DATE" "$MASTER_PREFIX")
 JSON_KEY="master" MAX_VER="$MASTER_INFINITY" NEXT_REL="undefined"
 
@@ -107,33 +102,38 @@ EOF
 FIRST_ENTRY=false
 
 
-# --- Process Release Branches using temporary clones ---
+# --- Process Release Branches using temporary clones and referencing remotes ---
 
-# Find branches using a safer find command format:
-mapfile -t RELEASE_BRANCHES < <(git for-each-ref --sort=-committerdate --format='%(refname:short)' refs/heads/release/crew-*)
+# Find branches in the remote references
+mapfile -t RELEASE_REFS < <(git for-each-ref --sort=-committerdate --format='%(refname:short)' refs/remotes/origin/release/crew-*)
 
-for BRANCH in "${RELEASE_BRANCHES[@]}"; do
-    echo "--- Processing branch: $BRANCH ---"
+for BRANCH_REF in "${RELEASE_REFS[@]}"; do
+    echo "--- Processing branch ref: $BRANCH_REF ---"
+
+    # Derive clean branch name (e.g., release/crew-2025.1) from the remote ref (origin/release/crew-2025.1)
+    BRANCH_NAME=$(echo "$BRANCH_REF" | sed 's/origin\///')
     
-    # Create a temporary directory for this specific branch
+    # Create a temporary directory for this specific branch context
     TEMP_DIR=$(mktemp -d)
     
-    # Clone the repo into the temp directory and switch to the specific branch
+    # Clone the repo into the temp directory
     git clone "$REPO_ROOT" "$TEMP_DIR" > /dev/null 2>&1
     cd "$TEMP_DIR"
-    git checkout "$BRANCH" > /dev/null 2>&1
+    
+    # Checkout the specific branch name so the files are present locally in temp dir
+    git checkout "$BRANCH_NAME" > /dev/null 2>&1
 
     # Extract the YYYY.R part (e.g., 2025.1)
-    export VERSION_PREFIX=$(echo "$BRANCH" | sed 's/release\/crew-//')
+    export VERSION_PREFIX=$(echo "$BRANCH_NAME" | sed 's/release\/crew-//')
 
     # Execute the version.sh script which IS present in this temp directory
     if CURRENT_VER=$(./bin/version.sh); then
-        echo "Generated Version for $BRANCH: $CURRENT_VER"
+        echo "Generated Version for $BRANCH_NAME: $CURRENT_VER"
     else
-        echo "[ERROR] version.sh failed for $BRANCH. Logging and degrading gracefully." >&2
-        cd "$REPO_ROOT" # Ensure we return before continuing
-        rm -rf "$TEMP_DIR" # Clean up temp dir
-        continue # Skip this branch, but don't break the whole script
+        echo "[ERROR] version.sh failed for $BRANCH_NAME. Logging and degrading gracefully." >&2
+        cd "$REPO_ROOT"
+        rm -rf "$TEMP_DIR"
+        continue
     fi
     
     # Return to the main repository root directory to write the outputs
@@ -141,7 +141,7 @@ for BRANCH in "${RELEASE_BRANCHES[@]}"; do
 
     MAX_VER="${VERSION_PREFIX}${RELEASE_INFINITY_SUFFIX}"
     NEXT_REL="${VERSION_PREFIX}${NEXT_RELEASE_SUFFIX}"
-    JSON_KEY="$BRANCH"
+    JSON_KEY="$BRANCH_NAME"
 
     # Add this branch data to JSON/HTML
     echo "," >> "$JSON_OUTPUT"
@@ -155,19 +155,18 @@ EOF
 
     cat <<EOF >> "$HTML_OUTPUT"
             <tr>
-                <td>$BRANCH</td>
+                <td>$BRANCH_NAME</td>
                 <td>$CURRENT_VER</td>
                 <td>$MAX_VER</td>
                 <td>$NEXT_REL</td>
             </tr>
 EOF
 
-    # Clean up the temporary directory for this iteration
+    # Clean up the temporary directory
     rm -rf "$TEMP_DIR"
 
 done
 
-# Note: No final 'git checkout main' is needed as we never left the main branch context!
 
 # Finalize HTML and JSON files
 echo "    </tbody></table></body></html>" >> "$HTML_OUTPUT"
