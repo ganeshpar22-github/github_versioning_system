@@ -1,7 +1,7 @@
 #!/bin/bash
 # Description: Orchestrates version fetching and generates the final HTML and JSON files.
 
-set -e
+
 
 REPO_ROOT=$(pwd)
 OUTPUT_DIR="$REPO_ROOT/site_output"
@@ -129,7 +129,7 @@ for BRANCH_REF in "${RELEASE_REFS[@]}"; do
     export VERSION_PREFIX=$(echo "$BRANCH_NAME" | sed 's/release\/crew-//')
 
     # Execute the version.sh script which IS present in this temp directory
-    if CURRENT_VER=$(./bin/version.sh); then
+    if CURRENT_VER=$(VERSION_PREFIX="$VERSION_PREFIX" ./bin/version.sh); then
         echo "Generated Version for $BRANCH_NAME: $CURRENT_VER"
     else
         echo "[ERROR] version.sh failed for $BRANCH_NAME. Logging and degrading gracefully." >&2
