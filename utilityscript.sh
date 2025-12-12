@@ -47,7 +47,6 @@ cat <<EOF > "$HTML_OUTPUT"
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Crew Release Versions</title>
-    <a href="https://ganeshpar22-github.github.io/github_versioning_system/release.json">release.json</a>
     <style>
         table, th, td {
             border: 1px solid #ddd;
@@ -66,6 +65,8 @@ cat <<EOF > "$HTML_OUTPUT"
 </head>
 <body>
     <h1>Releases</h1>
+    <br>
+    <a href="https://ganeshpar22-github.github.io/github_versioning_system/release.json">release.json</a>
     <table>
         <thead>
             <tr>
@@ -100,7 +101,7 @@ EOF
 
 cat <<EOF >> "$HTML_OUTPUT"
             <tr>
-                <td>main</td>
+                <td>master</td>
                 <td>$CURRENT_VER</td>
                 <td>$MAX_VER</td>
                 <td>$NEXT_REL</td>
@@ -113,7 +114,7 @@ FIRST_ENTRY=false
 # --- Process Release Branches using a single repository approach ---
 
 # Find branches in the remote references
-mapfile -t RELEASE_REFS < <(git for-each-ref --sort=-committerdate --format='%(refname:short)' refs/remotes/origin/release/crew-*)
+mapfile -t RELEASE_REFS < <(git for-each-ref --sort=-refname --format='%(refname:short)' refs/remotes/origin/release/crew-*)
 
 for BRANCH_REF in "${RELEASE_REFS[@]}"; do
     echo "--- Processing branch ref: $BRANCH_REF ---"
