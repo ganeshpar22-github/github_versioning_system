@@ -46,19 +46,26 @@ cat <<EOF > "$HTML_OUTPUT"
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Release Versions</title>
+    <title>Crew Release Versions</title>
+    <a href="https://ganeshpar22-github.github.io/github_versioning_system/release.json">release.json</a>
     <style>
         table, th, td {
-            border: 1px solid black;
+            border: 1px solid #ddd;
             border-collapse: collapse;
             padding: 8px;
             text-align: left;
         }
-        th { background-color: #f2f2f2; }
+        th {
+         background-color: #f2f2f2;
+         display: table-cell;
+        }
+        table {
+         width: 100%;
+        }
     </style>
 </head>
 <body>
-    <h1>Current Release Versions</h1>
+    <h1>Releases</h1>
     <table>
         <thead>
             <tr>
