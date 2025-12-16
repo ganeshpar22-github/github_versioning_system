@@ -12,8 +12,8 @@ jobs:
     # Grant necessary permissions for checkout, writing files, and deploying pages
     permissions:
       contents: write 
-      pages: write
-      id-token: write # Needed for newer GitHub Pages deployments
+      pages: write    # will remove and addback this
+      id-token: write # Needed for newer GitHub Pages deployments here we can make changes for commit
 
     steps:
       - name: Checkout Repository (Fetch all branches)
@@ -21,7 +21,7 @@ jobs:
         with:
           # Fetch depth 0 ensures we have all branches locally for the script to switch between them
           fetch-depth: 0 
-          ref: master
+          ref: master   #here we have to change name to main
 
       
 

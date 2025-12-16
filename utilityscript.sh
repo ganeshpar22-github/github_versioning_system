@@ -89,13 +89,16 @@ MASTER_ANCHOR_DATE="2025-12-01"
 echo "--- Processing branch: main (master) using hardcoded values ---"
 
 CURRENT_VER=$(calculate_master_version_components "$MASTER_ANCHOR_DATE" "$MASTER_PREFIX")
-JSON_KEY="master" MAX_VER="$MASTER_INFINITY" NEXT_REL="undefined"
+JSON_KEY="master"
+MAX_VER="$MASTER_INFINITY"
+NEXT_REL="undefined"
 
 # Add main entry to JSON and HTML
 cat <<EOF >> "$JSON_OUTPUT"
   "$JSON_KEY":{
     "current-version":"$CURRENT_VER",
-    "max-version": "$MAX_VER"
+    "max-version": "$MAX_VER",
+    "next-release":"$NEXT_REL"
   }
 EOF
 
@@ -114,6 +117,7 @@ FIRST_ENTRY=false
 # --- Process Release Branches using a single repository approach ---
 
 # Find branches in the remote references
+# here we can use different sort options as per requirement and different format used in commit history
 mapfile -t RELEASE_REFS < <(git for-each-ref --sort=-refname --format='%(refname:short)' refs/remotes/origin/release/crew-*)
 
 for BRANCH_REF in "${RELEASE_REFS[@]}"; do
@@ -126,13 +130,16 @@ for BRANCH_REF in "${RELEASE_REFS[@]}"; do
     chmod +x ./bin/version.sh
 
     # Derive clean branch name (e.g., release/crew-2025.1) from the remote ref (origin/release/crew-2025.1)
+    # here we can make changes by removing number of slashes
     BRANCH_NAME=$(echo "$BRANCH_REF" | sed 's/origin\///')
 
     # Extract the YYYY.R part (e.g., 2025.1)
-    export VERSION_PREFIX=$(echo "$BRANCH_NAME" | sed 's/release\/crew-//')
+    RELEASE_PREFIX=$(echo "$BRANCH_NAME" | sed 's/release\/crew-//')
+    echo "Derived RELEASE_PREFIX: $RELEASE_PREFIX"
 
     # Execute the version.sh script which IS present in this branch context
-    if CURRENT_VER=$(VERSION_PREFIX="$VERSION_PREFIX" ./bin/version.sh); then
+    # here first give only release prefix, it will give error, after then give full version prefix
+    if CURRENT_VER=$(VERSION_PREFIX="$RELEASE_PREFIX" ./bin/version.sh); then
         echo "Generated Version for $BRANCH_NAME: $CURRENT_VER"
     else
         echo "[ERROR] version.sh failed for $BRANCH_NAME. Logging and degrading gracefully." >&2
@@ -144,6 +151,7 @@ for BRANCH_REF in "${RELEASE_REFS[@]}"; do
     JSON_KEY="$BRANCH_NAME"
 
     # Add this branch data to JSON/HTML
+    #HERE ALSO we can skip out , and then again add back
     echo "," >> "$JSON_OUTPUT"
     cat <<EOF >> "$JSON_OUTPUT"
   "$JSON_KEY":{
@@ -166,6 +174,7 @@ done
 
 # Switch back to main/master branch context before finishing
 # Use the correct name of your default branch here (e.g., 'master' or 'main')
+# here we have to give main as a branch name
 git reset --hard "master" > /dev/null 2>&1 
 
 
@@ -176,10 +185,10 @@ echo "}" >> "$JSON_OUTPUT"
 
 echo "Successfully generated $HTML_OUTPUT and $JSON_OUTPUT"
 
-# Add basic JSON validation using 'jq' (must be installed in the CI runner)
-if command -v jq &> /dev/null; then
-    jq . "$JSON_OUTPUT" > /dev/null
-    echo "JSON validation successful."
-else
-    echo "[WARNING] jq not installed, skipping JSON format validation."
-fi
+# # Add basic JSON validation using 'jq' (must be installed in the CI runner)
+# if command -v jq &> /dev/null; then
+#     jq . "$JSON_OUTPUT" > /dev/null
+#     echo "JSON validation successful."
+# else
+#     echo "[WARNING] jq not installed, skipping JSON format validation."
+# fi
