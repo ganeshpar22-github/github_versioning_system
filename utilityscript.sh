@@ -134,22 +134,22 @@ for BRANCH_REF in "${RELEASE_REFS[@]}"; do
     BRANCH_NAME=$(echo "$BRANCH_REF" | sed 's/origin\///')
 
     # Extract the YYYY.R part (e.g., 2025.1)
-    RELEASE_PREFIX=$(echo "$BRANCH_NAME" | sed 's/release\/crew-//')
-    echo "Derived RELEASE_PREFIX: $RELEASE_PREFIX"
+    VERSION_PREFIX=$(echo "$BRANCH_NAME" | sed 's/release\/crew-//')
+    echo "Derived VERSION_PREFIX: $VERSION_PREFIX"
 
     # Execute the version.sh script which IS present in this branch context
     # here first give only release prefix, it will give error, after then give full version prefix
-    if CURRENT_VER=$(RELEASE_PREFIX="$RELEASE_PREFIX" ./bin/version.sh); then
+    if CURRENT_VER=$(VERSION_PREFIX="$VERSION_PREFIX" ./bin/version.sh); then
         echo "Generated Version for $BRANCH_NAME: $CURRENT_VER"
     else
         echo "[ERROR] version.sh failed for $BRANCH_NAME. Logging and degrading gracefully." >&2
         continue # Skip this branch
     fi
 
-    # once give version_prefix later on change it to Release_prefix
+    # once give version_prefix later on change it to VERSION_PREFIX
     
-    MAX_VER="${RELEASE_PREFIX}${RELEASE_INFINITY_SUFFIX}"
-    NEXT_REL="${RELEASE_PREFIX}${NEXT_RELEASE_SUFFIX}"
+    MAX_VER="${VERSION_PREFIX}${RELEASE_INFINITY_SUFFIX}"
+    NEXT_REL="${VERSION_PREFIX}${NEXT_RELEASE_SUFFIX}"
     JSON_KEY="$BRANCH_NAME"
 
     # Add this branch data to JSON/HTML
