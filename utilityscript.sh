@@ -187,10 +187,10 @@ echo "}" >> "$JSON_OUTPUT"
 
 echo "Successfully generated $HTML_OUTPUT and $JSON_OUTPUT"
 
-# # Add basic JSON validation using 'jq' (must be installed in the CI runner)
-# if command -v jq &> /dev/null; then
-#     jq . "$JSON_OUTPUT" > /dev/null
-#     echo "JSON validation successful."
-# else
-#     echo "[WARNING] jq not installed, skipping JSON format validation."
-# fi
+# Add basic JSON validation using 'jq' (must be installed in the CI runner)
+if command -v jq &> /dev/null; then
+    jq . "$JSON_OUTPUT" > /dev/null
+    echo "JSON validation successful."
+else
+    echo "[WARNING] jq not installed, skipping JSON format validation."
+fi
