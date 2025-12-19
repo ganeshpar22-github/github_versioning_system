@@ -48,6 +48,7 @@ jobs:
         with:
           # Directory containing the generated HTML and JSON files
           path: './site_output'
+          retention-days: 7
 
   publish-pages:
     name: Publish Generated Versions to GitHub Pages
