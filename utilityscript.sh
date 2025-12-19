@@ -99,7 +99,7 @@ cat <<EOF >> "$JSON_OUTPUT"
     "current-version":"$CURRENT_VER",
     "max-version": "$MAX_VER",
     "next-release":"$NEXT_REL"
-  
+  }
 EOF
 
 cat <<EOF >> "$HTML_OUTPUT"
