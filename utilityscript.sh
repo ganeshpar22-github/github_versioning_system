@@ -4,7 +4,7 @@
 
 
 REPO_ROOT=$(pwd)
-OUTPUT_DIR="$REPO_ROOT/site_output"
+OUTPUT_DIR="$REPO_ROOT/site_output"   #we can update this name also but make sure to update in workflow too
 mkdir -p "$OUTPUT_DIR"
 
 HTML_OUTPUT="$OUTPUT_DIR/release.html"

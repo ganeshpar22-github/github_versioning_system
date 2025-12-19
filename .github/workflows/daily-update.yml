@@ -7,14 +7,13 @@ on:
   workflow_dispatch: # Allows manual triggering from the GitHub UI
 
 jobs:
-  generate-and-deploy:
+  generate-version:
+    name: Build and Validate versions
     runs-on: ubuntu-latest
     # Grant necessary permissions for checkout, writing files, and deploying pages
     permissions:
       contents: write 
-      pages: write    # will remove and addback this
-      id-token: write # Needed for newer GitHub Pages deployments here we can make changes for commit
-
+    
     steps:
       - name: Checkout Repository (Fetch all branches)
         uses: actions/checkout@v4
@@ -44,15 +43,25 @@ jobs:
         # If utilityscript.sh exits with a non-zero status (due to 'set -e' on errors), 
         # this step fails the workflow as required by the epic.
 
-      # --- Deployment Steps ---
-      - name: Setup GitHub Pages
-        uses: actions/configure-pages@v5
-
       - name: Upload Artifact
         uses: actions/upload-pages-artifact@v3
         with:
           # Directory containing the generated HTML and JSON files
           path: './site_output'
+
+  publish-pages:
+    name: Publish Generated Versions to GitHub Pages
+    needs: generate-version
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      
+      
 
       - name: Deploy to GitHub Pages
         id: deployment
