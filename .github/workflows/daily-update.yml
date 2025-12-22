@@ -23,7 +23,12 @@ jobs:
           ref: master   #here we have to change name to main
 
       
-
+      - name: Validate HTML Compliance
+        run: |
+          # Install a lightweight W3C validator CLI
+          npm install -g html-validator-cli
+          # Validate the generated file
+          html-validator --file ./site_output/release.html
 
       - name: Install Dependencies
         run: |
