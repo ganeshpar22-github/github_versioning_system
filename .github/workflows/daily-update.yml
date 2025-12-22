@@ -25,15 +25,13 @@ jobs:
       
       - name: Validate HTML (W3C Compliance)
         run: |
-          # 1. Download the official W3C Nu Validator
-          wget -q github.com
+          # 1. Install tidy (very fast, no heavy dependencies)
+          sudo apt-get update && sudo apt-get install -y tidy
           
-          # 2. Run validation against the generated file
-          # --html: specifies HTML5 validation
-          # --fail-on-error: ensures the workflow FAILS if the HTML is invalid
-          java -jar vnu.jar --html ./site_output/release.html
-          
-          echo "W3C HTML Validation Successful!"
+          # 2. Run validation
+          # -e: only show errors and warnings
+          # -q: quiet mode
+          tidy -e -q ./site_output/release.html
        
       - name: Install Dependencies
         run: |
