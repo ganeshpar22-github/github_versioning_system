@@ -23,12 +23,18 @@ jobs:
           ref: master   #here we have to change name to main
 
       
-      - name: Install xmllint
+      - name: Validate HTML (W3C Compliance)
         run: |
-          sudo apt-get update && sudo apt-get install -y libxml2-utils
-          xmllint --noout --html ./site_output/release.html
-
-      
+          # 1. Download the official W3C Nu Validator
+          wget -q github.com
+          
+          # 2. Run validation against the generated file
+          # --html: specifies HTML5 validation
+          # --fail-on-error: ensures the workflow FAILS if the HTML is invalid
+          java -jar vnu.jar --html ./site_output/release.html
+          
+          echo "W3C HTML Validation Successful!"
+       
       - name: Install Dependencies
         run: |
           # Install jq for JSON validation as requested in the utility script

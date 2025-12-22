@@ -194,3 +194,5 @@ if command -v jq &> /dev/null; then
 else
     echo "[WARNING] jq not installed, skipping JSON format validation."
 fi
+
+echo "Pages generation process completed."
