@@ -23,13 +23,12 @@ jobs:
           ref: master   #here we have to change name to main
 
       
-      - name: Validate HTML Compliance
+      - name: Install xmllint
         run: |
-          # Install a lightweight W3C validator CLI
-          npm install -g html-validator-cli
-          # Validate the generated file
-          html-validator --file ./site_output/release.html
+          sudo apt-get update && sudo apt-get install -y libxml2-utils
+          xmllint --noout --html ./site_output/release.html
 
+      
       - name: Install Dependencies
         run: |
           # Install jq for JSON validation as requested in the utility script
