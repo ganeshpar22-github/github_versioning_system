@@ -214,12 +214,29 @@ else
     echo "- [x] HTML output file exists and is non-empty." >> "$SUMMARY"
     missing()
 
-    for tag in \"<html>" "</html>" "<head>" "</head>" "<body>" "</body>" "<table>" "</table>" "<tr>" "</tr>" "<th>" "</th>" "<td>" "</td>"; do
-        if ! grep -q "$tag" "$HTML_OUTPUT"; then
-            echo "- [ ] Missing tag: $tag" >> "$SUMMARY"
-            VALIDATION_FAILURE=1
-        else
-            echo "- [x] Found tag: $tag" >> "$SUMMARY"
-        fi
+    for tag in \
+        "<!DOCTYPE html>" \
+        "<html" \
+        "<head>" \
+        "<meta charset=" \
+        "<title>" \
+        "</head>" \
+        "<body>" \
+        "<table>" \
+        "</table>" \
+        "</body>" \
+        "</html>"
+    do
+        grep -qiE "$tag" "$HTML_OUTPUT" || missing+=("$tag")
     done
+
+    if [ ${#missing[@]} -eq 0 ]; then
+        echo "- [x] All essential HTML tags are present." >> "$SUMMARY"
+    else
+        echo "- [ ] Missing essential HTML tags:" >> "$SUMMARY"
+        for tag in "${missing[@]}"; do
+            echo "  - $tag" >> "$SUMMARY"
+        done
+        VALIDATION_FAILURE=1
+    fi
 fi
