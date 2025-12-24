@@ -178,7 +178,8 @@ done
 # Switch back to main/master branch context before finishing
 # Use the correct name of your default branch here (e.g., 'master' or 'main')
 # here we have to give main as a branch name
-git reset --hard "master" > /dev/null 2>&1 
+# git reset --hard "master" > /dev/null 2>&1
+git checkout master --force 
 
 
 # Finalize HTML and JSON files
