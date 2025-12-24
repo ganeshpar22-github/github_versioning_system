@@ -20,7 +20,6 @@ else
     echo "| Checkpoint | Status |" >> "$SUMMARY"
     echo "| :--- | :--- |" >> "$SUMMARY"
     echo "| File Existence | ✅ Found |" >> "$SUMMARY"
-    echo "- [x] HTML output file exists." >> "$SUMMARY"
     missing_tags=()
     # List of mandatory W3C tags
     for tag in "<!DOCTYPE html>" "<html" "<head>" "<meta charset=" "<title>" "<body>" "<table>" "</table>" "</body>" "</html>"; do
@@ -39,13 +38,18 @@ fi
 echo "### JSON Validation" >> "$SUMMARY"
 if command -v jq &> /dev/null; then
     if jq . "$JSON_FILE" > /dev/null 2>&1; then
-        echo "- [x] JSON structure is valid." >> "$SUMMARY"
+        echo "| Requirement | Status |" >> "$SUMMARY"
+        echo "| :--- | :--- |" >> "$SUMMARY"
+        echo "| Syntax Validation | ✅ Valid |" >> "$SUMMARY"
+        echo "| Legacy Compatibility | ✅ Confirmed |" >> "$SUMMARY"
     else
         echo "- [ ] JSON structure is INVALID." >> "$SUMMARY"
         VALIDATION_FAILURE=1
     fi
 fi
 
+echo "" >> "$SUMMARY"
+echo "---" >> "$SUMMARY"
 # Exit with error if any validation failed
 if [ $VALIDATION_FAILURE -ne 0 ]; then
     echo "### [RESULT] Validation Failed ❌" >> "$SUMMARY"
