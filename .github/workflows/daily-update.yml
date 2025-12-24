@@ -49,8 +49,8 @@ jobs:
       - name: Run Validation Script
         # This satisfies Requirement 3: Pipeline fails if validation fails
         run: |
-          chmod +x scripts/validation.sh
-          ./scripts/validation.sh
+          chmod +x scripts/output_validation.sh
+          ./scripts/output_validation.sh
 
       - name: Upload Artifact
         uses: actions/upload-pages-artifact@v3
