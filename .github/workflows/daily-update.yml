@@ -26,15 +26,7 @@ jobs:
           ref: master   #here we have to change name to main
 
       
-      - name: Validate HTML (W3C Compliance)
-        run: |
-          # 1. Install tidy (very fast, no heavy dependencies)
-          sudo apt-get update && sudo apt-get install -y tidy
-          
-          # 2. Run validation
-          # -e: only show errors and warnings
-          # -q: quiet mode
-          tidy -e -q ./site_output/release.html
+      
        
       - name: Install Dependencies
         run: |

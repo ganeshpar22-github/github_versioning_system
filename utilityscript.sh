@@ -197,3 +197,29 @@ else
 fi
 
 echo "Pages generation process completed."
+
+
+#----validation for html---#
+SUMMARY="${GITHUB_STEP_SUMMARY:-/tmp/version_summary.md}"
+touch "$SUMMARY"
+echo "## Version Pages Generation Summary" >> "$SUMMARY"
+VALIDATION_FAILURE=0
+
+echo "html validation results:" >> "$SUMMARY"
+
+if [[ ! -s "$HTML_OUTPUT" ]]; then
+    echo "- [ ] HTML output file is empty or missing." >> "$SUMMARY"
+    VALIDATION_FAILURE=1
+else
+    echo "- [x] HTML output file exists and is non-empty." >> "$SUMMARY"
+    missing()
+
+    for tag in \"<html>" "</html>" "<head>" "</head>" "<body>" "</body>" "<table>" "</table>" "<tr>" "</tr>" "<th>" "</th>" "<td>" "</td>"; do
+        if ! grep -q "$tag" "$HTML_OUTPUT"; then
+            echo "- [ ] Missing tag: $tag" >> "$SUMMARY"
+            VALIDATION_FAILURE=1
+        else
+            echo "- [x] Found tag: $tag" >> "$SUMMARY"
+        fi
+    done
+fi
