@@ -48,13 +48,13 @@ jobs:
 
       - name: Run Version Generation Utility Script
         # This script orchestrates the whole process, including calling version.sh on all branches
-        run: ./tmp/scripts/utilityscript.sh
+        run: bash /tmp/scripts/utilityscript.sh
         # If utilityscript.sh exits with a non-zero status (due to 'set -e' on errors), 
         # this step fails the workflow as required by the epic.
 
       - name: Run Validation Script
         # This satisfies Requirement 3: Pipeline fails if validation fails
-        run: ./tmp/scripts/output_validation.sh
+        run: bash /tmp/scripts/output_validation.sh
           
           
 
