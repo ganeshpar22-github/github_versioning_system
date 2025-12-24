@@ -37,6 +37,7 @@ jobs:
         # Ensure both the main orchestrator and the individual version scripts are executable
         run: |
           chmod +x scripts/utilityscript.sh
+          chmod +x scripts/output_validation.sh
           # Since utilityscript.sh checks out other branches, this might be redundant, 
           # but good practice if testing locally. The chmod on the main script is crucial.
 
@@ -48,9 +49,9 @@ jobs:
 
       - name: Run Validation Script
         # This satisfies Requirement 3: Pipeline fails if validation fails
-        run: |
-          chmod +x scripts/output_validation.sh
-          ./scripts/output_validation.sh
+        run: ./scripts/output_validation.sh
+          
+          
 
       - name: Upload Artifact
         uses: actions/upload-pages-artifact@v3
