@@ -25,7 +25,12 @@ jobs:
           fetch-depth: 0 
           ref: master   #here we have to change name to main
 
-      
+      - name: Preserve Scripts
+        # Move scripts to a temp folder outside the git workspace
+        run: |
+          mkdir -p /tmp/scripts
+          cp scripts/*.sh /tmp/scripts/
+          chmod +x /tmp/scripts/*.sh
       
        
       - name: Install Dependencies
@@ -33,23 +38,23 @@ jobs:
           # Install jq for JSON validation as requested in the utility script
           sudo apt-get update && sudo apt-get install -y jq
 
-      - name: Make scripts executable
-        # Ensure both the main orchestrator and the individual version scripts are executable
-        run: |
-          chmod +x scripts/utilityscript.sh
-          chmod +x scripts/output_validation.sh
-          # Since utilityscript.sh checks out other branches, this might be redundant, 
-          # but good practice if testing locally. The chmod on the main script is crucial.
+      # - name: Make scripts executable
+      #   # Ensure both the main orchestrator and the individual version scripts are executable
+      #   run: |
+      #     chmod +x scripts/utilityscript.sh
+      #     chmod +x scripts/output_validation.sh
+      #     # Since utilityscript.sh checks out other branches, this might be redundant, 
+      #     # but good practice if testing locally. The chmod on the main script is crucial.
 
       - name: Run Version Generation Utility Script
         # This script orchestrates the whole process, including calling version.sh on all branches
-        run: ./scripts/utilityscript.sh
+        run: ./tmp/scripts/utilityscript.sh
         # If utilityscript.sh exits with a non-zero status (due to 'set -e' on errors), 
         # this step fails the workflow as required by the epic.
 
       - name: Run Validation Script
         # This satisfies Requirement 3: Pipeline fails if validation fails
-        run: ./scripts/output_validation.sh
+        run: ./tmp/scripts/output_validation.sh
           
           
 
