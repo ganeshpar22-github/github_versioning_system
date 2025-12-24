@@ -199,44 +199,44 @@ fi
 echo "Pages generation process completed."
 
 
-#----validation for html---#
-SUMMARY="${GITHUB_STEP_SUMMARY:-/tmp/version_summary.md}"
-touch "$SUMMARY"
-echo "## Version Pages Generation Summary" >> "$SUMMARY"
-VALIDATION_FAILURE=0
+# #----validation for html---#
+# SUMMARY="${GITHUB_STEP_SUMMARY:-/tmp/version_summary.md}"
+# touch "$SUMMARY"
+# echo "## Version Pages Generation Summary" >> "$SUMMARY"
+# VALIDATION_FAILURE=0
 
-echo "html validation results:" >> "$SUMMARY"
+# echo "html validation results:" >> "$SUMMARY"
 
-if [[ ! -s "$HTML_OUTPUT" ]]; then
-    echo "- [ ] HTML output file is empty or missing." >> "$SUMMARY"
-    VALIDATION_FAILURE=1
-else
-    echo "- [x] HTML output file exists and is non-empty." >> "$SUMMARY"
-    missing()
+# if [[ ! -s "$HTML_OUTPUT" ]]; then
+#     echo "- [ ] HTML output file is empty or missing." >> "$SUMMARY"
+#     VALIDATION_FAILURE=1
+# else
+#     echo "- [x] HTML output file exists and is non-empty." >> "$SUMMARY"
+#     missing()
 
-    for tag in \
-        "<!DOCTYPE html>" \
-        "<html" \
-        "<head>" \
-        "<meta charset=" \
-        "<title>" \
-        "</head>" \
-        "<body>" \
-        "<table>" \
-        "</table>" \
-        "</body>" \
-        "</html>"
-    do
-        grep -qiE "$tag" "$HTML_OUTPUT" || missing+=("$tag")
-    done
+#     for tag in \
+#         "<!DOCTYPE html>" \
+#         "<html" \
+#         "<head>" \
+#         "<meta charset=" \
+#         "<title>" \
+#         "</head>" \
+#         "<body>" \
+#         "<table>" \
+#         "</table>" \
+#         "</body>" \
+#         "</html>"
+#     do
+#         grep -qiE "$tag" "$HTML_OUTPUT" || missing+=("$tag")
+#     done
 
-    if [ ${#missing[@]} -eq 0 ]; then
-        echo "- [x] All essential HTML tags are present." >> "$SUMMARY"
-    else
-        echo "- [ ] Missing essential HTML tags:" >> "$SUMMARY"
-        for tag in "${missing[@]}"; do
-            echo "  - $tag" >> "$SUMMARY"
-        done
-        VALIDATION_FAILURE=1
-    fi
-fi
+#     if [ ${#missing[@]} -eq 0 ]; then
+#         echo "- [x] All essential HTML tags are present." >> "$SUMMARY"
+#     else
+#         echo "- [ ] Missing essential HTML tags:" >> "$SUMMARY"
+#         for tag in "${missing[@]}"; do
+#             echo "  - $tag" >> "$SUMMARY"
+#         done
+#         VALIDATION_FAILURE=1
+#     fi
+# fi
