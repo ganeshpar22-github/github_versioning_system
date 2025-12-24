@@ -8,6 +8,8 @@ SUMMARY="${GITHUB_STEP_SUMMARY:-/tmp/version_summary.md}"
 VALIDATION_FAILURE=0
 
 echo "## Quality Validation Summary" >> "$SUMMARY"
+echo "Generated on: $(date -u '+%Y-%m-%d %H:%M:%S') UTC" >> "$SUMMARY"
+echo "" >> "$SUMMARY"
 
 # --- HTML Validation ---
 echo "### HTML Validation" >> "$SUMMARY"
@@ -15,6 +17,9 @@ if [[ ! -s "$HTML_FILE" ]]; then
     echo "- [ ] HTML output file is empty or missing." >> "$SUMMARY"
     VALIDATION_FAILURE=1
 else
+    echo "| Checkpoint | Status |" >> "$SUMMARY"
+    echo "| :--- | :--- |" >> "$SUMMARY"
+    echo "| File Existence | ✅ Found |" >> "$SUMMARY"
     echo "- [x] HTML output file exists." >> "$SUMMARY"
     missing_tags=()
     # List of mandatory W3C tags
@@ -23,9 +28,9 @@ else
     done
 
     if [ ${#missing_tags[@]} -eq 0 ]; then
-        echo "- [x] All essential W3C HTML tags are present." >> "$SUMMARY"
+         echo "| W3C Structural Tags | ✅ Valid |" >> "$SUMMARY"
     else
-        echo "- [ ] Missing essential tags: ${missing_tags[*]}" >> "$SUMMARY"
+        "| W3C Structural Tags | ❌ Missing ${missing_tags[*]} |" >> "$SUMMARY"
         VALIDATION_FAILURE=1
     fi
 fi
