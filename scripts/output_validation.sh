@@ -58,3 +58,7 @@ else
     echo "### [RESULT] Validation Passed ✅" >> "$SUMMARY"
     exit 0
 fi
+
+
+# this is first comment for testing
+# this is second comment for testing
