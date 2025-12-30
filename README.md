@@ -1,7 +1,7 @@
 # 🚀 Crew Integration System: Version Number Generator
 
 This repository provides a modern, cloud-native solution for generating and publishing release version numbers. It replaces legacy BER infrastructure with a fully automated, deterministic pipeline hosted on GitHub Actions.
-
+&
 ---
 
 ## 1. High-Level Architecture
