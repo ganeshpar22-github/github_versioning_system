@@ -1,0 +1,67 @@
+Demonstration Script: Crew Versioning System (Cloud-Native)
+
+1. The Introduction (The "Why")
+
+"Good morning/afternoon. Today I am demonstrating the new Crew Versioning System.
+Our goal was to move away from legacy 'BER' infrastructure and create a modern, cloud-ready solution. We have successfully moved the entire versioning logic into GitHub Actions and GitHub Pages, making the system self-sufficient, automated, and easy to maintain."
+
+-------------------------------------------------------------------------------
+
+2. The Branch Strategy (Requirement 1 & 4)
+
+"First, let’s look at the repository. Following the Epic requirements:
+We have branches for every release from 2021.1 to 2026.1.
+
+Each branch is a 'self-contained' unit. It contains a bin/branch.nfo file with its start date and a bin/version.sh script to calculate its specific version.
+
+This means we no longer have a single, massive configuration file. If you need to fix a version for one release, you only change that specific branch."
+
+-------------------------------------------------------------------------------
+
+3. The Automation Workflow (Requirement 3 & 7)
+
+"Now, let’s look at how the data is produced. We have a central engine called version_publisher.sh.
+
+The Process: Every day at 00:05 UTC, a GitHub Action wakes up. It loops through every release branch, switches to it, and runs its local version script.
+
+Master Version: The script also calculates the version for the main branch. As requested, the main branch version is unique—it doesn't use weeks, only a day-counter since the last cycle reset.
+
+Efficiency: The entire process for all branches finishes in under 30 seconds, well within the 1-minute requirement."
+
+-------------------------------------------------------------------------------
+
+4. Resilience & "Graceful Degradation" (Requirement 7)
+
+"A key requirement was that the system must Degrade Gracefully.
+If a developer makes a mistake—for example, if they delete a script or enter an invalid date like '2025-02-29'—the system does not crash.
+
+It logs the error, skips that specific branch, and continues to build the site for everyone else.
+
+I have implemented detailed logging so that the 'Possible Reason' for any failure is printed directly in the GitHub Action logs for easy troubleshooting."
+
+-------------------------------------------------------------------------------
+
+5. Output & Validation (Requirement 2 & 6)
+
+"Once the data is collected, we generate two artifacts:
+
+releases.html: A W3C-compliant table for human viewing.
+releases.json: A strictly formatted file for our integration systems.
+
+Before these are published, an output_validation.sh script runs. It uses jq to ensure the JSON is valid and checks that the HTML has all required tags. If the final files are broken, the workflow fails to prevent us from publishing 'bad data' to the site."
+
+-------------------------------------------------------------------------------
+
+6. The Developer Experience (Requirement 5)
+
+"Finally, we wanted a 'Zero-Touch' experience for onboarding.
+I have created a Developer Guide in the README.
+
+To add a new release, a developer only needs to create a branch and update one date in branch.nfo. The system handles the rest automatically.
+
+The final results are hosted on GitHub Pages, which provides 100% uptime and removes all dependencies on local servers."
+
+-------------------------------------------------------------------------------
+
+7. Conclusion
+"In summary: The solution is deterministic, resilient, and fully documented. It replicates the legacy logic perfectly while moving us into a scalable, cloud-native environment.
