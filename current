@@ -1,0 +1,590 @@
+# Workflow Name: Daily Version Generation and Deploy
+#   - Runs daily (via cron), on manual trigger
+# Purpose:
+#   - Generate version artifacts (HTML & JSON)
+#   - Validate them
+#   - Deploy to GitHub Pages
+
+name: Daily Version Generation and Deploy
+on:
+  schedule:
+    - cron: '5 0 * * *'             # Runs daily at 00:05 UTC 
+  workflow_dispatch:                # Allows manual trigger from GitHub UI
+
+# Job1: generate-version
+
+jobs:
+  generate-version:
+    name: Build & Validate Version
+    runs-on: gac
+    permissions:
+      contents: write
+    steps:
+     
+# Step 1: Checkout repository
+# - fetch-depth: 0 ensures full history and all branches are available)
+
+      - name: Checkout Repository & Fetch all branches
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+         
+# Step 2: Preserve scripts in /tmp
+# - Copies shell scripts to /tmp to avoid path issues
+# - chmod ensures they are executable
+
+      - name: Preserve Scripts
+        run: |
+          mkdir -p /tmp/scripts
+          cp scripts/*.sh /tmp/scripts
+          chmod +x /tmp/scripts/*.sh
+ 
+# Step 3: Install jq
+# - jq is required for JSON validation in output_validation.sh
+
+      - name: Install jq for json validation
+        run: |
+          sudo apt-get update && sudo apt-get install -y jq
+          
+
+# Step 4: Run version generation and validation scripts
+# - Calls version_publisher.sh to generate HTML & JSON artifacts
+# - Calls output_validation.sh to validate artifacts and write summary
+
+      - name: Run Version Script + Summary
+        shell: bash
+        run: |
+          /tmp/scripts/version_publisher.sh   
+          /tmp/scripts/output_validation.sh 
+
+# Step 5: Upload artifacts for GitHub Pages
+# - Uses actions/upload-pages-artifact to store generated HTML & JSON
+# - retention-days: 7 means artifacts expire after 7 days
+
+      - name: Upload build artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          name: crew-versions-artifacts
+          path: ./artifact_output
+          retention-days: 7
+
+# Job 2: Publish artifacts to GitHub Pages
+# - Depends on generate-version job
+# - Deploys uploaded artifacts to GitHub Pages
+
+  publish-pages:
+    name: Publish Generated Versions to GitHub Pages
+    needs: generate-version
+    runs-on: gac
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      
+# Step: Deploy artifacts to GitHub Pages
+# - Uses official deploy-pages action
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+        with:
+          artifact_name: crew-versions-artifacts    
+  -----------
+
+output validation.sh
+
+#!/bin/bash
+
+# ============================================================
+# Script: Validate generated artifacts (HTML & JSON)
+# Purpose:
+#   - Ensure releases.html exists and includes required HTML tags
+#   - Ensure releases.json exists, is valid JSON (via jq)
+#   - Report branch generation failures if available
+#
+# Environment assumptions / dependencies:
+#   - jq installed (for JSON validation)
+#   - Scripts generate files in artifact_output/
+#   - In CI, writes to GITHUB_STEP_SUMMARY;
+# ==============================================================
+
+HTML_OUTPUT="artifact_output/releases.html"    # Path to generated HTML
+JSON_OUTPUT="artifact_output/releases.json"    # Path to generated JSON
+
+# Track branches that fail version generation
+FAILED_BRANCHES=()
+
+SUMMARY="${GITHUB_STEP_SUMMARY:-/tmp/version_summary.md}"  ## Output summary target 
+
+VALIDATION_FAILURE=0                # Tracks overall result
+
+echo "## Validation Summary" >> "$SUMMARY"
+echo "Generated on: $(date -u '+%Y-%m-%d  %H:%M:%S') UTC" >> "$SUMMARY"
+echo "" >> "$SUMMARY"
+
+# --- HTML Validation (checks html file and missing patterns)
+# Notes:
+#   - Validates presence and W3C-compliant structure (skeleton tags)
+#   - Case-insensitive grep for basic tag existence
+
+echo "### HTML Validation" >> "$SUMMARY"
+
+echo "| Checkpoint | Status |" >> "$SUMMARY"
+echo "| :--- | :--- |" >> "$SUMMARY"
+
+if [[ ! -s "$HTML_OUTPUT" ]]; then
+  echo "| File Existence | ❌ Missing |" >> "$SUMMARY"
+  VALIDATION_FAILURE=1
+else
+  
+  echo "| File Existence | ✅ Exist |" >> "$SUMMARY"
+
+# Collect missing patterns
+  missing=()
+
+ # Required opening + closing tags.
+
+  for tag in \
+    '<!DOCTYPE[[:space:]]+html' \
+    '<html\b' '</html>' \
+    '<head\b' '</head>' \
+    '<meta[[:space:]]+charset\b' \
+    '<title\b' '</title>' \
+    '<body\b' '</body>' \
+    '<style\b' '</style>' \
+    '<table\b' '</table>' \
+    '<thead\b' '</thead>' \
+    '<tbody\b' '</tbody>' \
+    '<tr\b' '</tr>' \
+    '<th\b' '</th>' \
+    '<td\b' '</td>'
+
+  do
+    grep -qiE "$tag" "$HTML_OUTPUT" || missing+=("$tag")
+  done
+
+  if (( ${#missing[@]} == 0 )); then
+    #echo "✅ releases.html includes HTML skeleton with required opening/closing tags & table structure" >> "$SUMMARY"
+    echo "| W3C compliant HTML structure | ✅ Valid |" >> "$SUMMARY"
+  else
+    #echo "❌ releases.html is missing: ${missing[*]}" >> "$SUMMARY"
+    echo "| W3C compliant HTML structure | ❌ Missing ${missing[*]} |" >> "$SUMMARY"
+    VALIDATION_FAILURE=1
+  fi
+fi
+
+# JSON validation:
+#   - Existence check
+#   - Syntax validation via jq empty (strict)
+#   - Schema check:
+#       * master key must exist
+#       * master: must have current-version and max-version
+#       * other branches: must have current-version, max-version, next-release
+# ------------------------------------------------------------
+
+echo "### JSON Validation" >> "$SUMMARY"
+
+echo "| Checkpoint | Status |" >> "$SUMMARY"
+echo "| :--- | :--- |" >> "$SUMMARY"
+
+
+if [[ ! -s "$JSON_OUTPUT" ]]; then
+  echo "| File Existence | ❌ Missing |" >> "$SUMMARY"
+  VALIDATION_FAILURE=1
+else
+  echo "| File Existence | ✅ Exist |" >> "$SUMMARY"
+  if ! jq empty "$JSON_OUTPUT" 2>/dev/null; then
+    echo "| Syntax Validation | ❌ Invalid |" >> "$SUMMARY"
+    VALIDATION_FAILURE=1
+  else
+     echo "| Syntax Validation | ✅ Valid |" >> "$SUMMARY"
+    if [[ $(jq 'has("master")' "$JSON_OUTPUT") != "true" ]]; then
+      echo "❌ releases.json is missing the mandatory 'master' key" >> "$SUMMARY"
+      VALIDATION_FAILURE=1
+    else
+      MISSING_KEYS=$(jq '[to_entries[] | select((.key == "master" and 
+      (.value | has("current-version") and has("max-version") | not)) or
+      (.key != "master" and (.value | has("current-version") and has("max-version") and 
+      has("next-release") | not)))] | length' "$JSON_OUTPUT")    
+
+      if [[ "$MISSING_KEYS" -eq 0 ]]; then
+        echo "| Legacy Compatibility | ✅ Compliant |" >> "$SUMMARY"
+      else
+        echo "| Legacy Compatibility | ❌ Non-Compliant, missing entry(s): $MISSING_KEYS |" >> "$SUMMARY"
+        VALIDATION_FAILURE=1
+      fi
+    fi    
+  fi
+fi
+
+
+# ------------------------------------------------------------
+# Branch Generation Validation:
+#   - Load failed branches from tmp directory
+#   - Add branch processing status to GitHub Step Summary:
+#       * If failures: List each failed branch
+#       * If no failures: Show a success msg
+# ------------------------------------------------------------
+
+FAILED_FILE="/tmp/failed_branches.txt"
+FAILED_BRANCHES=()
+
+if [[ -f "$FAILED_FILE" ]]; then
+    mapfile -t FAILED_BRANCHES < "$FAILED_FILE"
+fi
+
+echo "### Branch Generation" >> "$SUMMARY"
+if [[ ${#FAILED_BRANCHES[@]} -gt 0 ]]; then
+    echo "⚠️ The following branches were not processed and have been excluded:" >> "$SUMMARY"
+    for fbranch in "${FAILED_BRANCHES[@]}"; do
+        echo "- $fbranch" >> "$SUMMARY"
+    done
+else
+    echo "✅ All branches processed release version successfully" >> "$SUMMARY"
+fi
+
+echo "" >> "$SUMMARY"
+echo "---" >> "$SUMMARY"
+
+# Final result
+echo "### Result" >> "$SUMMARY"
+if [[ $VALIDATION_FAILURE -ne 0 ]]; then
+    echo "❌ Validation failed. See details above" >> "$SUMMARY"
+    exit 1
+else
+    echo "✅ Validation passed" >> "$SUMMARY"
+fi
+
+---------------
+
+version_publisher.sh
+
+#!/bin/bash
+
+
+# Script: Generate HTML and JSON artifacts for release versions
+# Purpose:
+#   - Builds a table (HTML) and a JSON map of release version with correct version for the current date
+# Environment assumptions / dependencies:
+#   - Uses remote refs: refs/remotes/origin/release/crew-*
+#   - Requires the helper script: ./bin/version.
+
+# Defining Artifactory Output path 
+REPOSITORY_ROOT=$(pwd)
+OUTPUT_PATH="$REPOSITORY_ROOT/artifact_output"
+
+mkdir -p "$OUTPUT_PATH"                   # Ensure artifacts directory exists before writing files
+
+HTML_OUTPUT="$OUTPUT_PATH/releases.html"   # HTML artifact path
+JSON_OUTPUT="$OUTPUT_PATH/releases.json"   # JSON artifact path
+
+
+# Defining Static Values
+MAIN_MAX_VERSION="0.0.0"     # max-version for master/main (legacy requirement)
+MAX_VERSION_SUFFIX=".999"    
+NEXT_RELEASE_SUFFIX=".1000"
+
+# ------------------------------------------------------------
+# Function: calculate_main_version
+# Inputs:
+#   - RELEASE_DATE (YYYY-MM-DD)
+#   - PREFIX (numeric version prefix, e.g., 2026.1)
+# Behavior:
+#   - Validates date string, converts to epoch
+#   - Computes days since release start
+# ------------------------------------------------------------
+
+calculate_main_version() {
+    RELEASE_DATE=$1
+    PREFIX=$2
+    
+    # Validate Date format and Convert it into Epoch timestamp
+    if ! START_EPOCH=$(date -d "$RELEASE_DATE" +%s 2>/dev/null); then
+        echo "Invalid date format:" $RELEASE_DATE
+        echo "Expected format: YYYY-MM-DD"
+        exit 1
+    fi
+    
+    CURRENT_EPOCH=$(date +%s)
+
+    # Calculate total days since the start date
+    DAYS_DIFF=$(( (CURRENT_EPOCH - START_EPOCH) / 86400 ))
+    
+    # For Main branch : Weeks are always 0. Days increment daily
+    WEEKS=0
+    DAYS=$DAYS_DIFF
+
+    echo "$PREFIX.$WEEKS.$DAYS"
+}
+
+
+# ------------------------------------------------------------
+# Begin HTML document (static header & table skeleton)
+# Notes:
+#   - Minimal styling for readability
+#   - Table headers match JSON schema fields
+# ------------------------------------------------------------
+
+# Start HTML file structure
+cat <<EOF > "$HTML_OUTPUT"
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crew Release Versions</title>
+    <style>
+        table, th, td {
+            border: 1px solid #ddd;
+            border-collapse: collapse;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+         background-color: #f2f2f2;
+         display: table-cell;
+        }
+        table {
+         width: 100%;
+        }
+    </style>
+</head>
+<body>
+    <h1>Releases</h1>
+    <br>
+    <a href="releases.json">releases.json</a>
+    <table>
+        <thead>
+            <tr>
+                <th>Branch</th>
+                <th>Current Version</th>
+                <th>Max Version</th>
+                <th>Next Release</th>
+            </tr>
+        </thead>
+        <tbody>
+EOF
+
+# Start JSON object
+echo "{" > "$JSON_OUTPUT"
+
+echo "Processing main branch first with static values"
+
+
+# ------------------------------------------------------------
+# Main (master) branch version is computed via start date & prefix
+# NOTE: These are static values;
+# ------------------------------------------------------------
+
+MAIN_PREFIX="2026.1"
+MAIN_RELEASE_DATE="2025-07-22"
+
+MAIN_CURRENT_VERSION=$(calculate_main_version "$MAIN_RELEASE_DATE" "$MAIN_PREFIX")
+MAX_VERSION="$MAIN_MAX_VERSION"
+NEXT_RELEASE="undefined"
+JSON_KEY="master"
+
+echo $MAIN_CURRENT_VERSION
+
+# Add main row to HTML
+cat <<EOF >> "$HTML_OUTPUT"
+            <tr>
+                <td>master</td>
+                <td>$MAIN_CURRENT_VERSION</td>
+                <td>$MAX_VERSION</td>
+                <td>$NEXT_RELEASE</td>
+            </tr>
+EOF
+
+# Add main object to JSON
+cat <<EOF >> "$JSON_OUTPUT"
+  "$JSON_KEY":{
+    "current-version":"$MAIN_CURRENT_VERSION",
+    "max-version": "$MAX_VERSION"
+  }
+EOF
+
+echo "Processing release branch"
+
+# Initializing array to capture failed branches
+FAILED_BRANCHES=()
+
+# ------------------------------------------------------------
+# Discover release branches from remote origin
+# NOTE:
+#   - Requires origin remote and fetched refs
+#   - Pattern: refs/remotes/origin/release/crew-*
+# ------------------------------------------------------------
+
+RELEASE_BRANCHES=($(git for-each-ref \
+  --format='%(refname:short)' \
+  --sort=refname \
+  refs/remotes/origin/release/crew-*))
+
+# ------------------------------------------------------------
+# Loop through each release branch:
+#   - Reset workspace to the branch
+#   - Make ./bin/version.sh executable and run with VERSION_PREFIX
+#   - Build HTML row and JSON entry with current/max/next versions
+#   - Collect failures for post-run visibility
+# ------------------------------------------------------------
+
+for BRANCH in "${RELEASE_BRANCHES[@]}"; do
+    echo "Processing release branch :" $BRANCH 
+
+    git reset --hard "$BRANCH" > /dev/null 2>&1
+
+    BRANCH_NAME=$(echo "$BRANCH" | sed 's/origin\///')      # display without "origin/"
+    
+ # Ensure version.sh exists and is executable; don’t break on chmod failure
+    if [[ -f ./bin/version.sh ]]; then
+        chmod +x ./bin/version.sh || true
+    else
+      echo "Release version generation failed for: $BRANCH_NAME (missing ./bin/version.sh)"
+      FAILED_BRANCHES+=("$BRANCH_NAME")
+      continue
+    fi
+
+
+    VERSION_PREFIX=$(echo "$BRANCH_NAME" | sed 's/release\/crew-//')   # extract crew version prefix
+
+ #  Run version.sh with VERSION_PREFIX set in the environment
+    CURRENT_VERSION=$(VERSION_PREFIX="$VERSION_PREFIX" ./bin/version.sh 2>&1)
+
+    if [ $? -eq 0 ]; then
+        echo "Release version for $BRANCH_NAME: $CURRENT_VERSION"
+    else
+        echo "Release version generation failed for: $BRANCH_NAME"
+        echo "Possible Reason: $CURRENT_VERSION" 
+        FAILED_BRANCHES+=("$BRANCH_NAME")
+        continue 
+    fi
+
+    MAX_VERSION="${VERSION_PREFIX}${MAX_VERSION_SUFFIX}"
+    NEXT_RELEASE="${VERSION_PREFIX}${NEXT_RELEASE_SUFFIX}"
+    JSON_KEY="$BRANCH_NAME"
+
+ # Append row to HTML
+    cat <<EOF >> "$HTML_OUTPUT"
+            <tr>
+                <td>$BRANCH_NAME</td>
+                <td>$CURRENT_VERSION</td>
+                <td>$MAX_VERSION</td>
+                <td>$NEXT_RELEASE</td>
+            </tr>
+EOF
+
+# Append comma-separated JSON object
+echo "," >> "$JSON_OUTPUT"
+    cat <<EOF >> "$JSON_OUTPUT"
+  "$JSON_KEY":{
+    "current-version":"$CURRENT_VERSION",
+    "max-version":"$MAX_VERSION",
+    "next-release":"$NEXT_RELEASE"
+  }
+EOF
+
+done
+
+git reset --hard "main" > /dev/null 2>&1 
+
+# Close HTML and JSON documents
+echo "</tbody></table></body></html>" >> "$HTML_OUTPUT"
+echo "}" >> "$JSON_OUTPUT"
+
+echo "Generated releases.html :" $HTML_OUTPUT "& releases.json:" $JSON_OUTPUT
+
+
+# ------------------------------------------------------------
+# Failure Branch Summary Report:
+#   - Checks if any branches were added to FAILED_BRANCHES
+#   - Iterates through the collection of failed branch names
+#   - Prints a clean summary to STDOUT for developer visibility
+#   - Provides a final count of failed release branchess
+# ------------------------------------------------------------
+echo "All Release Branches scanned successfully"
+
+echo "------------------------------------------"
+if [ ${#FAILED_BRANCHES[@]} -ne 0 ]; then
+    echo "The following branches FAILED to process:"
+    for FAILED in "${FAILED_BRANCHES[@]}"; do
+        echo " - $FAILED"
+    done
+    echo "Total failures: ${#FAILED_BRANCHES[@]}"
+else
+    echo "All branches processed successfully"
+fi
+echo "------------------------------------------"
+
+# Save each failed branch to a file which will later processed by SUMMARY file
+for branch in "${FAILED_BRANCHES[@]}"; do
+  echo "$branch" >> /tmp/failed_branches.txt
+done
+
+------------------
+
+
+version.sh
+
+#!/bin/bash
+
+MAIN_BRANCH_INFINITY="0.0.0"
+BRANCH_NFO_FILE="./bin/branch.nfo"
+
+# This function calculates a version number based on release date provided in branch.nfo file
+calculate_version() {
+    RELEASE_DATE=$1
+
+    # Basic Input Validation
+    if [[ -z "$RELEASE_DATE" ]]; then
+        echo "Date is not present in branch.nfo file"
+        exit 1
+    fi
+
+    # Validate Date format and Convert it into Epoch timestamp
+    if ! START_EPOCH=$(date -d "$RELEASE_DATE" +%s 2>/dev/null); then
+        echo "Invalid date format in branch.nfo:" $RELEASE_DATE
+        echo "Expected format: YYYY-MM-DD"
+        exit 1
+    fi
+
+    CURRENT_EPOCH=$(date +%s)
+
+    # Ensure release date is not in the future
+    if [[ "$START_EPOCH" -gt "$CURRENT_EPOCH" ]]; then
+        echo "Release Date cannot be in future or greater than current date"
+        echo "Current branch.nfo date is :" $RELEASE_DATE
+        exit 1
+    fi
+
+    # Calculate total days since the start date
+    DAYS_DIFF=$(( (CURRENT_EPOCH - START_EPOCH) / 86400 ))
+
+    # Calculate whole weeks elapsed
+    WEEKS=$(( DAYS_DIFF / 7 ))
+
+    # Calculate remaining days (0-6) within a week
+    DAYS=$(( DAYS_DIFF % 7 ))
+
+    # Determine the Branch Prefix Dynamically
+    if [[ -n "$VERSION_PREFIX" ]]; then
+        BRANCH_PREFIX="$VERSION_PREFIX"
+    else 
+        BRANCH_PREFIX="UNDEFINED"
+    fi
+
+    # Standerd output of final calculated version
+    echo "$BRANCH_PREFIX.$WEEKS.$DAYS"
+}
+
+# Verify if branch.nfo file exist before calling calculate_version function
+if [[ -f "$BRANCH_NFO_FILE" ]]; then
+    BRANCH_NFO_DATE=$(cat "$BRANCH_NFO_FILE" | tr -d '\n')
+    calculate_version "$BRANCH_NFO_DATE"
+else
+    echo $MAIN_BRANCH_INFINITY
+    echo "Branch.nfo file doesn't exist, please follow instructions in README.md file if it is a release branch"
+fi
