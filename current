@@ -588,3 +588,31 @@ else
     echo $MAIN_BRANCH_INFINITY
     echo "Branch.nfo file doesn't exist, please follow instructions in README.md file if it is a release branch"
 fi
+
+
+-------
+script used for html generation
+
+    fetch('./releases.json')
+    .then(response => response.json())
+    .then(data => {
+        const table = document.querySelector('table');
+
+        for (const key in data) {
+            if (data.hasOwnProperty(key)) {
+                const release = data[key];
+                const row = table.insertRow();
+
+                const releaseCell = row.insertCell(0);
+                const currentVersionCell = row.insertCell(1);
+                const maxVersionCell = row.insertCell(2);
+                const nextReleaseCell = row.insertCell(3);
+
+                releaseCell.innerHTML = key;
+                currentVersionCell.innerHTML = release['current-version'];
+                maxVersionCell.innerHTML = release['max-version'];
+                nextReleaseCell.innerHTML = release['next-release'];
+            }
+        }
+    })
+    .catch(error => console.error('Error fetching data:', error));
